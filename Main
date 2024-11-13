@@ -1,0 +1,110 @@
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+public class Main {
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Выберите режим: (1) Сервер, (2) Клиент");
+        int choice = scanner.nextInt();
+        scanner.nextLine(); // Consume newline character
+
+        if (choice == 1) {
+            startServer();
+        } else if (choice == 2) {
+            startClient();
+        } else {
+            System.out.println("Неверный выбор.");
+        }
+    }
+
+    // Запуск сервера
+    private static void startServer() {
+        try (ServerSocket serverSocket = new ServerSocket(8080)) {
+            System.out.println("Сервер запущен на порту 8080.");
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Клиент подключен.");
+
+                // Обработка ввода-вывода для клиента
+                new Thread(() -> handleClient(clientSocket)).start();
+            }
+        } catch (IOException e) {
+            System.err.println("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    // Обработка клиента
+    private static void handleClient(Socket clientSocket) {
+        try (PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                System.out.println("Клиент: " + inputLine);
+                // Отправляем сообщение всем клиентам
+                broadcastMessage(inputLine, clientSocket);
+            }
+        } catch (IOException e) {
+            System.err.println("Ошибка клиента: " + e.getMessage());
+        }
+    }
+
+    // Рассылка сообщений всем клиентам
+    private static void broadcastMessage(String message, Socket senderSocket) {
+        for (Socket client : clients) {
+            if (client != senderSocket) {
+                try (PrintWriter out = new PrintWriter(client.getOutputStream(), true)) {
+                    out.println(message);
+                } catch (IOException e) {
+                    System.err.println("Ошибка рассылки: " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    // Запуск клиента
+    private static void startClient() {
+        try (Socket socket = new Socket("localhost", 8080)) {
+            System.out.println("Клиент подключен к серверу.");
+
+            // Обработка ввода-вывода для клиента
+            new Thread(() -> handleInput(socket)).start();
+            new Thread(() -> handleOutput(socket)).start();
+        } catch (IOException e) {
+            System.err.println("Ошибка клиента: " + e.getMessage());
+        }
+    }
+
+    // Обработка ввода от клиента
+    private static void handleInput(Socket socket) {
+        try (Scanner scanner = new Scanner(System.in);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            while (true) {
+                String message = scanner.nextLine();
+                out.println(message);
+            }
+        } catch (IOException e) {
+            System.err.println("Ошибка ввода: " + e.getMessage());
+        }
+    }
+
+    // Обработка вывода от сервера
+    private static void handleOutput(Socket socket) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                System.out.println("Сервер: " + inputLine);
+            }
+        } catch (IOException e) {
+            System.err.println("Ошибка вывода: " + e.getMessage());
+        }
+    }
+
+    // Список подключенных клиентов
+    private static Set<Socket> clients = new HashSet<>();
+}
